@@ -1,6 +1,6 @@
 module github.com/mharner33/telephone
 
-go 1.23.4
+go 1.25.1
 
 require (
 	github.com/go-logr/logr v1.4.3 // indirect
