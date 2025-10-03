@@ -24,6 +24,22 @@ import (
 
 var tracer = otel.Tracer("telephone-game")
 
+var hosts = []string{"tele0", "tele1", "tele2", "tele3", "tele4"}
+var hostMsgMap = map[string]string{
+	"tele0": "http://tele0:8080/message",
+	"tele1": "http://tele1:8081/message",
+	"tele2": "http://tele2:8082/message",
+	"tele3": "http://tele3:8083/message",
+	"tele4": "http://tele4:8084/message",
+}
+var hostHealthtap = map[string]string{
+	"tele0": "http://tele0:8080/health",
+	"tele1": "http://tele1:8081/health",
+	"tele2": "http://tele2:8082/health",
+	"tele3": "http://tele3:8083/health",
+	"tele4": "http://tele4:8084/health",
+}
+
 type Message struct {
 	Text string `json:"text"`
 }
@@ -119,17 +135,75 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "OK")
 }
 
+func coinFlip() bool {
+	return rand.Intn(2) == 1
+}
+
+func getNextHost() string {
+	hostname, err := os.Hostname()
+	if err != nil {
+		log.Printf("Error getting hostname: %v", err)
+		return ""
+	}
+
+	for i, host := range hosts {
+		if host == hostname {
+			// Return next host, wrapping around to 0 if at end
+			nextIndex := (i + 1) % len(hosts)
+			return hosts[nextIndex]
+		}
+	}
+
+	// If current hostname not found in array, return first host
+	return hosts[0]
+}
+
+func getNextHostURL() string {
+	nextHost := getNextHost()
+	if url, exists := hostMsgMap[nextHost]; exists {
+		return url
+	}
+	return ""
+}
+
+func getNextHostHealth() bool {
+	nextHost := getNextHost()
+	healthURL, exists := hostHealthtap[nextHost]
+	if !exists {
+		log.Printf("Health check failed for %s: host not found in health map", nextHost)
+		return false
+	}
+
+	resp, err := http.Get(healthURL)
+	if err != nil {
+		log.Printf("Health check failed for %s: %v", nextHost, err)
+		return false
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("Health check failed for %s: status %d", nextHost, resp.StatusCode)
+		return false
+	}
+
+	return true
+}
+
 func modifyMessage(text string) string {
 	runes := []rune(text)
 	if len(runes) == 0 {
 		return ""
 	}
-	// Modify one character at random
-	if len(runes) > 0 {
-		randomIndex := rand.Intn(len(runes))
-		randomChar := runes[randomIndex]
-		// simple modification: increment the character
-		runes[randomIndex] = randomChar + 1
+
+	// Only modify if coin flip is true
+	if coinFlip() {
+		// Modify one character at random
+		if len(runes) > 0 {
+			randomIndex := rand.Intn(len(runes))
+			randomChar := runes[randomIndex]
+			// simple modification: increment the character
+			runes[randomIndex] = randomChar + 1
+		}
 	}
 
 	return string(runes)
