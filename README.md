@@ -1,6 +1,6 @@
 # Telephone Game Microservice
 
-This Go microservice emulates the "telephone game". It receives a message, randomly modifies it, and passes it along to the next service in the chain.
+This Go microservice emulates the "telephone game". It receives a message, randomly modifies it (based on a coin flip), and passes it along to the next service in the chain. The service automatically discovers the next host in a predefined sequence and performs health checks before forwarding messages.
 
 ## Endpoints
 
@@ -13,7 +13,27 @@ This Go microservice emulates the "telephone game". It receives a message, rando
 The service is configured using environment variables:
 
 *   `PORT`: The port the service listens on. Defaults to `8080`.
-*   `NEXT_SERVICE_URL`: The full URL of the next telephone service to call (e.g., `http://telephone-2:8080/message`). If this is not set, the message chain ends.
+
+## Host Discovery and Health Checking
+
+The service automatically manages a chain of 5 hosts (tele0 through tele4) with the following features:
+
+*   **Automatic Host Discovery**: The service determines the next host in the sequence based on its own hostname
+*   **Health Checking**: Before forwarding messages, the service checks the health of the next host
+*   **Failover**: If the next host is unhealthy, it automatically tries subsequent hosts in the sequence
+*   **Cycle Detection**: When a message completes a full cycle (returns to tele0), forwarding stops
+
+### Host Configuration
+
+The service is pre-configured with the following hosts and their respective ports:
+- tele0:8080, tele1:8081, tele2:8082, tele3:8083, tele4:8084
+
+Each host has both message (`/message`) and health (`/health`) endpoints.
+
+## Message Processing
+
+*   **Random Modification**: Messages are only modified if a coin flip returns true (50% chance)
+*   **Character Modification**: When modified, one random character in the message is incremented by 1
 
 ## OpenTelemetry Tracing
 
@@ -53,26 +73,30 @@ To use a different exporter (like Jaeger or Zipkin), you would modify the `newEx
 
 3.  **Run multiple instances (a chain):**
 
-    Let's run two services. The first will forward to the second.
+    The service now automatically discovers the next host, so you can run multiple instances with different hostnames:
 
     ```bash
-    docker run -p 8081:8080 --name telephone-2 -d telephone
-    docker run -p 8080:8080 --name telephone-1 -e NEXT_SERVICE_URL=http://host.docker.internal:8081/message -d telephone
+    docker run -p 8080:8080 --name tele0 --hostname tele0 -d telephone
+    docker run -p 8081:8080 --name tele1 --hostname tele1 -d telephone
+    docker run -p 8082:8080 --name tele2 --hostname tele2 -d telephone
+    docker run -p 8083:8080 --name tele3 --hostname tele3 -d telephone
+    docker run -p 8084:8080 --name tele4 --hostname tele4 -d telephone
     ```
-    *Note: `host.docker.internal` is used to allow the container to connect to the host machine.*
 
-
-    Now, send a message to the first service:
+    Now, send a message to any service (e.g., tele0):
 
     ```bash
     curl -X POST -d '{"text":"hello world"}' http://localhost:8080/message
     ```
 
-    Check the logs of both containers to see the message being passed and modified:
+    The message will automatically flow through the chain: tele0 → tele1 → tele2 → tele3 → tele4 → (stops)
+
+    Check the logs of any container to see the message flow:
 
     ```bash
-    docker logs telephone-1
-    docker logs telephone-2
+    docker logs tele0
+    docker logs tele1
+    # ... etc
     ```
 
 ## Running locally
@@ -85,14 +109,31 @@ To use a different exporter (like Jaeger or Zipkin), you would modify the `newEx
     go run main.go
     ```
 
-    To run a chain, you'll need multiple terminals.
+    To run a chain locally, you'll need multiple terminals with different hostnames:
 
-    *Terminal 1:*
+    *Terminal 1 (tele0):*
     ```bash
-    go run main.go
+    PORT=8080 go run main.go
     ```
 
-    *Terminal 2:*
+    *Terminal 2 (tele1):*
     ```bash
-    PORT=8081 NEXT_SERVICE_URL=http://localhost:8080/message go run main.go
+    PORT=8081 go run main.go
     ```
+
+    *Terminal 3 (tele2):*
+    ```bash
+    PORT=8082 go run main.go
+    ```
+
+    *Terminal 4 (tele3):*
+    ```bash
+    PORT=8083 go run main.go
+    ```
+
+    *Terminal 5 (tele4):*
+    ```bash
+    PORT=8084 go run main.go
+    ```
+
+    Note: For local testing, you may need to modify the hostname detection or use Docker for proper hostname isolation.

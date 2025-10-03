@@ -120,7 +120,8 @@ func messageHandler(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Modified message: %s", modifiedText)
 	span.AddEvent("Message modified", oteltrace.WithAttributes(attribute.String("modified.message", modifiedText)))
 
-	nextServiceURL := os.Getenv("NEXT_SERVICE_URL")
+	//nextServiceURL := os.Getenv("NEXT_SERVICE_URL")
+	nextServiceURL := getNextHostURL()
 	if nextServiceURL != "" {
 		go forwardMessage(ctx, modifiedText, nextServiceURL)
 	} else {
@@ -146,20 +147,60 @@ func getNextHost() string {
 		return ""
 	}
 
+	currentIndex := -1
 	for i, host := range hosts {
 		if host == hostname {
-			// Return next host, wrapping around to 0 if at end
-			nextIndex := (i + 1) % len(hosts)
-			return hosts[nextIndex]
+			currentIndex = i
+			break
 		}
 	}
 
-	// If current hostname not found in array, return first host
-	return hosts[0]
+	// If current hostname not found in array, start from 0
+	if currentIndex == -1 {
+		log.Printf("Hostname not found in array, starting from 0", currentIndex)
+		currentIndex = -1
+
+	}
+
+	// Try each host starting from the next one
+	for i := 1; i <= len(hosts); i++ {
+		nextIndex := (currentIndex + i) % len(hosts)
+		nextHost := hosts[nextIndex]
+
+		// Check health of this host
+		if checkHostHealth(nextHost) {
+			return nextHost
+		}
+	}
+
+	// If no healthy host found, return the immediate next host anyway
+	nextIndex := (currentIndex + 1) % len(hosts)
+	return hosts[nextIndex]
+}
+
+func checkHostHealth(host string) bool {
+	healthURL, exists := hostHealthtap[host]
+	if !exists {
+		return false
+	}
+
+	resp, err := http.Get(healthURL)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+
+	return resp.StatusCode == http.StatusOK
 }
 
 func getNextHostURL() string {
 	nextHost := getNextHost()
+
+	// If next host is the first in the list, we've completed the cycle
+	if nextHost == hosts[0] {
+		return ""
+	}
+
 	if url, exists := hostMsgMap[nextHost]; exists {
 		return url
 	}
