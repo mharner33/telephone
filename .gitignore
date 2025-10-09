@@ -1,0 +1,33 @@
+# Binaries for the current project
+*.exe
+*.dll
+*.so
+*.dylib
+*.test
+*.prof
+
+# Compiled packages and cached build artifacts
+pkg/
+bin/
+.cache/
+
+# Dependency management
+# If you are using Go Modules, these are generally not needed as modules are handled
+# by Go itself and dependencies are stored in the Go module cache outside the project.
+# However, if using older dependency management tools like dep, you might need:
+# vendor/
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.bak
+*~
+.DS_Store
+Thumbs.db
+
+# Log files
+*.log
+
+# Environment variables and sensitive data (if applicable)
+.env
