@@ -5,56 +5,29 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
-	"math/rand"
 	"net/http"
 	"os"
-	"time"
 
 	ddotel "github.com/DataDog/dd-trace-go/v2/ddtrace/opentelemetry"
 	"github.com/mharner33/telephone/hosts"
 	"github.com/mharner33/telephone/message"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
 	"go.opentelemetry.io/otel/propagation"
-	"go.opentelemetry.io/otel/sdk/resource"
-	"go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
+
 	//semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
-	//oteltrace "go.opentelemetry.io/otel/trace"
+	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
 var tracer = otel.Tracer("telephone-game")
 
 type Message struct {
-	Text string `json:"text"`
-}
-
-func newExporter(w io.Writer) (trace.SpanExporter, error) {
-	return stdouttrace.New(
-		stdouttrace.WithWriter(w),
-		// Use human-readable output.
-		stdouttrace.WithPrettyPrint(),
-		stdouttrace.WithoutTimestamps(),
-	)
-}
-
-func newResource() *resource.Resource {
-	r, _ := resource.Merge(
-		resource.Default(),
-		resource.NewWithAttributes(
-			semconv.SchemaURL,
-			semconv.ServiceName("telephone"),
-		),
-	)
-	return r
+	OriginalText string `json:"original_text"`
+	ModifiedText string `json:"modified_text"`
 }
 
 func main() {
-	rand.Seed(time.Now().UnixNano())
-
 	provider := ddotel.NewTracerProvider()
 	defer provider.Shutdown()
 	otel.SetTracerProvider(provider)
@@ -89,17 +62,32 @@ func messageHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("Received message: %s", msg.Text)
-	span.SetAttributes(attribute.String("received.message", msg.Text))
+	var originalText, modifiedText string
 
-	modifiedText := message.Modify(msg.Text)
-	log.Printf("Modified message: %s", modifiedText)
-	span.AddEvent("Message modified", ddotel.WithAttributes(attribute.String("modified.message", modifiedText)))
+	// If modified message is blank, this is the first host
+	if msg.ModifiedText == "" {
+		originalText = msg.OriginalText
+		modifiedText = message.Modify(msg.OriginalText)
+		log.Printf("First host - Original message: %s", originalText)
+		log.Printf("Modified message: %s", modifiedText)
+	} else {
+		originalText = msg.OriginalText
+		modifiedText = message.Modify(msg.ModifiedText)
+		log.Printf("Original message: %s", originalText)
+		log.Printf("Previous modified: %s", msg.ModifiedText)
+		log.Printf("New modified message: %s", modifiedText)
+	}
+
+	span.SetAttributes(
+		attribute.String("original.message", originalText),
+		attribute.String("modified.message", modifiedText),
+	)
+	span.AddEvent("Message modified", oteltrace.WithAttributes(attribute.String("modified.message", modifiedText)))
 
 	//nextServiceURL := os.Getenv("NEXT_SERVICE_URL")
 	nextServiceURL := hosts.GetNextHostURL()
 	if nextServiceURL != "" {
-		go forwardMessage(ctx, modifiedText, nextServiceURL)
+		go forwardMessage(ctx, originalText, modifiedText, nextServiceURL)
 	} else {
 		log.Println("End of the line. No NEXT_SERVICE_URL configured.")
 		span.AddEvent("End of the line")
@@ -112,11 +100,11 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "OK")
 }
 
-func forwardMessage(ctx context.Context, text string, url string) {
+func forwardMessage(ctx context.Context, originalText string, modifiedText string, url string) {
 	ctx, span := tracer.Start(ctx, "forward-message")
 	defer span.End()
 
-	msg := Message{Text: text}
+	msg := Message{OriginalText: originalText, ModifiedText: modifiedText}
 	body, err := json.Marshal(msg)
 	if err != nil {
 		log.Printf("Error marshalling message: %v", err)
