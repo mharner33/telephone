@@ -1,6 +1,6 @@
 module github.com/mharner33/telephone
 
-go 1.25.1
+go 1.25
 
 require (
 	github.com/DataDog/dd-trace-go/v2 v2.2.3
