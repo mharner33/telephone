@@ -14,6 +14,10 @@ var hostMsgMap = map[string]string{
 	"tele3": "http://tele3:8083/message",
 	"tele4": "http://tele4:8084/message",
 }
+
+// Function variables for mocking in tests
+var getHostnameFunc = os.Hostname
+var checkHostHealthFunc = CheckHostHealth
 var hostHealthMap = map[string]string{
 	"tele0": "http://tele0:8080/health",
 	"tele1": "http://tele1:8081/health",
@@ -24,7 +28,7 @@ var hostHealthMap = map[string]string{
 
 // GetNextHost returns the next healthy host in the rotation
 func GetNextHost() string {
-	hostname, err := os.Hostname()
+	hostname, err := getHostnameFunc()
 	if err != nil {
 		log.Printf("Error getting hostname: %v", err)
 		return ""
@@ -51,7 +55,7 @@ func GetNextHost() string {
 		nextHost := hostsList[nextIndex]
 
 		// Check health of this host
-		if CheckHostHealth(nextHost) {
+		if checkHostHealthFunc(nextHost) {
 			return nextHost
 		}
 	}

@@ -2,15 +2,21 @@ package message
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"log"
 	"math/rand"
 	"net/http"
 	"strings"
+
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 )
 
+var tracer = otel.Tracer("telephone-game")
+
 // Modify takes a text string, selects a random word, and replaces it with its opposite using LLM
-func Modify(text string) string {
+func Modify(ctx context.Context, text string) string {
 	// Only modify if coin flip is true
 	if !coinFlip() {
 		log.Println("No modifications were made")
@@ -24,14 +30,14 @@ func Modify(text string) string {
 	}
 
 	// Select a random word
-	randomIndex := rand.Intn(len(words))
+	randomIndex := randSource(len(words))
 	selectedWord := words[randomIndex]
 
 	// Create prompt for LLM
 	prompt := "Return only a single word that is the opposite of: " + selectedWord
 
 	// Call Ollama API
-	oppositeWord, err := callOllama(prompt)
+	oppositeWord, err := callOllamaFunc(ctx, prompt)
 	if err != nil {
 		// If error, return original text
 		log.Println("No modifications were made")
@@ -45,8 +51,15 @@ func Modify(text string) string {
 	return strings.Join(words, " ")
 }
 
+// callOllamaFunc is a variable that holds the callOllama function (allows mocking in tests)
+var callOllamaFunc = callOllama
+
 // callOllama sends a request to Ollama API and returns the generated text
-func callOllama(prompt string) (string, error) {
+func callOllama(ctx context.Context, prompt string) (string, error) {
+	ctx, span := tracer.Start(ctx, "call-ollama")
+	defer span.End()
+
+	span.SetAttributes(attribute.String("ollama.prompt", prompt))
 	requestBody := map[string]interface{}{
 		"model":  "gemma3:270m",
 		"prompt": prompt,
@@ -55,11 +68,20 @@ func callOllama(prompt string) (string, error) {
 
 	jsonData, err := json.Marshal(requestBody)
 	if err != nil {
+		span.RecordError(err)
 		return "", err
 	}
 
-	resp, err := http.Post("http://ollama:11434/api/generate", "application/json", bytes.NewBuffer(jsonData))
+	req, err := http.NewRequestWithContext(ctx, "POST", "http://ollama:11434/api/generate", bytes.NewBuffer(jsonData))
 	if err != nil {
+		span.RecordError(err)
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		span.RecordError(err)
 		return "", err
 	}
 	defer resp.Body.Close()
@@ -69,13 +91,19 @@ func callOllama(prompt string) (string, error) {
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		span.RecordError(err)
 		return "", err
 	}
 
 	// Clean up the response - get just the word
-	return strings.TrimSpace(result.Response), nil
+	response := strings.TrimSpace(result.Response)
+	span.SetAttributes(attribute.String("ollama.response", response))
+	return response, nil
 }
 
+// randSource is a variable that holds the random source (allows mocking in tests)
+var randSource = rand.Intn
+
 func coinFlip() bool {
-	return rand.Intn(2) == 1
+	return randSource(2) == 1
 }

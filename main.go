@@ -67,12 +67,12 @@ func messageHandler(w http.ResponseWriter, r *http.Request) {
 	// If modified message is blank, this is the first host
 	if msg.ModifiedText == "" {
 		originalText = msg.OriginalText
-		modifiedText = message.Modify(msg.OriginalText)
+		modifiedText = message.Modify(ctx, msg.OriginalText)
 		log.Printf("First host - Original message: %s", originalText)
 		log.Printf("Modified message: %s", modifiedText)
 	} else {
 		originalText = msg.OriginalText
-		modifiedText = message.Modify(msg.ModifiedText)
+		modifiedText = message.Modify(ctx, msg.ModifiedText)
 		log.Printf("Original message: %s", originalText)
 		log.Printf("Previous modified: %s", msg.ModifiedText)
 		log.Printf("New modified message: %s", modifiedText)
