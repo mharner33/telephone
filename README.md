@@ -5,7 +5,9 @@ This Go microservice emulates the "telephone game". It receives a message, rando
 ## Endpoints
 
 *   `POST /message`: Receives a JSON payload with a message, modifies it, and forwards it.
-    *   Request body: `{"text": "your message here"}`
+    *   Request body: `{"original_text": "your message here", "modified_text": ""}`
+    *   For the first host in the chain, `modified_text` should be an empty string
+    *   For subsequent hosts, `modified_text` contains the previously modified version
 *   `GET /health`: A health check endpoint. Returns `OK`.
 
 ## Configuration
@@ -33,7 +35,8 @@ Each host has both message (`/message`) and health (`/health`) endpoints.
 ## Message Processing
 
 *   **Random Modification**: Messages are only modified if a coin flip returns true (50% chance)
-*   **Character Modification**: When modified, one random character in the message is incremented by 1
+*   **LLM-Based Word Replacement**: When modified, a random word in the message is selected and replaced with its opposite using the Ollama LLM API (gemma3:270m model)
+*   The service connects to an Ollama instance at `http://ollama:11434/api/generate`
 
 ## OpenTelemetry Tracing
 
@@ -62,7 +65,7 @@ To use a different exporter (like Jaeger or Zipkin), you would modify the `newEx
     Send a message to it:
 
     ```bash
-    curl -X POST -d '{"text":"hello world"}' http://localhost:8080/message
+    curl -X POST -d '{"original_text":"hello world","modified_text":""}' http://localhost:8080/message
     ```
 
     Check the logs:
@@ -86,7 +89,7 @@ To use a different exporter (like Jaeger or Zipkin), you would modify the `newEx
     Now, send a message to any service (e.g., tele0):
 
     ```bash
-    curl -X POST -d '{"text":"hello world"}' http://localhost:8080/message
+    curl -X POST -d '{"original_text":"hello world","modified_text":""}' http://localhost:8080/message
     ```
 
     The message will automatically flow through the chain: tele0 → tele1 → tele2 → tele3 → tele4 → (stops)
@@ -137,3 +140,50 @@ To use a different exporter (like Jaeger or Zipkin), you would modify the `newEx
     ```
 
     Note: For local testing, you may need to modify the hostname detection or use Docker for proper hostname isolation.
+
+## Quote Generator Utility
+
+The `utils/` directory contains a Python-based quote generator that automatically feeds quotes into the telephone chain:
+
+### Features
+
+*   Reads inspirational quotes from `utils/quotes` file (126 quotes)
+*   Posts one quote every 15 seconds to the telephone service
+*   Cycles through all quotes continuously
+
+### Running the Quote Generator
+
+1.  **Using Docker:**
+
+    Build the Docker image from the utils directory:
+
+    ```bash
+    cd utils
+    docker build -t telephone-generator .
+    ```
+
+    Run the generator (assuming tele0 is accessible):
+
+    ```bash
+    docker run -e URL=tele0 -e PORT=8080 telephone-generator
+    ```
+
+2.  **Using Python directly:**
+
+    Install dependencies:
+
+    ```bash
+    pip install requests
+    ```
+
+    Run the script:
+
+    ```bash
+    cd utils
+    URL=localhost PORT=8080 python main.py
+    ```
+
+### Environment Variables
+
+*   `URL`: The hostname or IP address of the telephone service
+*   `PORT`: The port of the telephone service
