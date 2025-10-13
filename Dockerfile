@@ -1,10 +1,8 @@
 # Build stage
-FROM golang:1.25.1-alpine AS builder
+FROM golang:1.25.2-3.22 AS builder
 WORKDIR /app
-RUN apt-get update && \
-    apt-get install -y git && \
-    rm -rf /var/lib/apt/lists/*
-COPY go.mod .
+RUN apk update && \
+    apk add --no-cache git && 
 COPY main.go .
 RUN go mod tidy
 RUN go build -o /telephone .
