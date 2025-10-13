@@ -1,12 +1,8 @@
 # Stage 1: Build dependencies
-FROM python:3.11-slim-bookworm as builder
+FROM python:3.12-slim-bookworm as builder
 
 # Install uv
-COPY --from=ghcr.io/astral-sh/uv:0.1.34 /uv /usr/local/bin/uv
-
-# Set environment variables for uv
-ENV UV_COMPILE_BYTECODE=1 \
-    UV_LINK_MODE=copy
+COPY --from=docker.io/astral/uv:latest /uv /uvx /bin/
 
 # Set the working directory
 WORKDIR /app
@@ -14,12 +10,11 @@ WORKDIR /app
 # Copy pyproject.toml and uv.lock for dependency installation
 COPY pyproject.toml uv.lock ./
 
-# Install dependencies using uv sync with caching
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-install-project --no-dev
+# Install dependencies using uv
+RUN uv sync --locked
 
 # Stage 2: Final image
-FROM python:3.11-slim-bookworm
+FROM python:3.12-slim-bookworm
 
 # Set the working directory
 WORKDIR /app
@@ -32,8 +27,5 @@ ENV PATH="/app/.venv/bin:$PATH"
 
 # Copy the rest of the application code
 COPY . .
-
-# Install the project itself (if it's installable)
-RUN uv sync --frozen --no-dev
 
 CMD ["python", "main.py"]
