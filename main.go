@@ -4,10 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	ddotel "github.com/DataDog/dd-trace-go/v2/ddtrace/opentelemetry"
 	"github.com/mharner33/telephone/hosts"
@@ -41,8 +42,17 @@ func main() {
 		port = "8080"
 	}
 
+	server := &http.Server{
+		Addr:              ":" + port,
+		Handler:           nil,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      10 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		ReadHeaderTimeout: 5 * time.Second,
+	}
+
 	log.Printf("Listening on port %s", port)
-	log.Fatal(http.ListenAndServe(":"+port, nil))
+	log.Fatal(server.ListenAndServe())
 }
 
 func messageHandler(w http.ResponseWriter, r *http.Request) {
@@ -93,11 +103,11 @@ func messageHandler(w http.ResponseWriter, r *http.Request) {
 		span.AddEvent("End of the line")
 	}
 
-	fmt.Fprintf(w, "Message received and forwarded (maybe)")
+	io.WriteString(w, "Message received and forwarded (maybe)")
 }
 
 func healthHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "OK")
+	io.WriteString(w, "OK")
 }
 
 func forwardMessage(ctx context.Context, originalText string, modifiedText string, url string) {
@@ -123,7 +133,7 @@ func forwardMessage(ctx context.Context, originalText string, modifiedText strin
 	req.Header.Set("Content-Type", "application/json")
 	otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(req.Header))
 
-	client := &http.Client{}
+	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
 		log.Printf("Error forwarding message: %v", err)
