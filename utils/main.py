@@ -18,8 +18,19 @@ def main():
         sys.exit(1)
     
     api_endpoint = f"http://{url}:{port}/message"
+    health_endpoint = f"http://{url}:{port}/health"
     quotes_file = os.path.join(os.path.dirname(__file__), "quotes")
     
+    # Check health before sending any messages
+    try:
+        health_resp = requests.get(health_endpoint, timeout=5)
+        if health_resp.status_code != 200:
+            logging.error(f"Health check failed ({health_resp.status_code}) for {health_endpoint}")
+            sys.exit(1)
+    except Exception:
+        logging.exception("Health check request failed")
+        sys.exit(1)
+
     logging.info(f"Starting quote generator - posting to {api_endpoint} every 15 seconds")
     
     with open(quotes_file, "r") as f:
