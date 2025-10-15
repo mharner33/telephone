@@ -1,0 +1,196 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: tele0
+  labels:
+    app: tele0
+spec:
+  ports:
+  - port: 8080
+    name: tele0
+    targetPort: 8080
+  selector:
+    app: tele0
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: tele0
+spec:
+  containers:
+  - name: tele0
+    image: mharner33/telephone:latest
+    ports:
+    - containerPort: 8080
+    env:
+      - name: DD_ENV
+        value: "prod"
+      - name: DD_SERVICE
+        value: "tele0"
+      - name: DD_VERSION
+        value: "1.0.0"
+      - name: PORT
+        value: "8080"
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "100m"
+      limits:
+        memory: "256Mi"
+        cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tele1
+  labels:
+    app: tele1
+spec:
+  ports:
+  - port: 8081
+    name: tele1
+    targetPort: 8081
+  selector:
+    app: tele1
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: tele1
+spec:
+  containers:
+  - name: tele1
+    image: mharner33/telephone:latest
+    ports:
+    - containerPort: 8081
+    env:
+      - name: DD_ENV
+        value: "prod"
+      - name: DD_SERVICE
+        value: "tele1"
+      - name: DD_VERSION
+        value: "1.0.0"
+      - name: PORT
+        value: "8081"
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "100m"
+      limits:
+        memory: "256Mi"
+        cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tele2
+  labels:
+    app: tele2
+spec:
+  ports:
+    - port: 8082 
+      name: tele2
+      targetPort: 8082
+  selector:
+    app: tele2
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: tele2
+spec:
+  containers:
+  - name: tele2
+    image: mharner33/telephone:latest 
+    ports:
+    - containerPort: 8082
+    env:
+      - name: DD_ENV
+        value: "prod"
+      - name: DD_SERVICE
+        value: "tele2"
+      - name: DD_VERSION
+        value: "1.0.0"
+      - name: PORT
+        value: "8082"
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "100m"
+      limits:
+        memory: "256Mi"
+        cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tele3
+  labels:
+    app: tele3
+spec:
+  ports:
+    - port: 8083  
+      name: tele3
+      targetPort: 8083
+  selector:
+    app: tele3
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: tele3
+spec:
+  containers:
+  - name: tele3
+    image: mharner33/telephone:latest 
+    ports:
+    - containerPort: 8083
+    env:
+      - name: DD_ENV
+        value: "prod"
+      - name: DD_SERVICE
+        value: "tele3"
+      - name: DD_VERSION
+        value: "1.0.0"
+      - name: PORT
+        value: "8083"
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "100m"
+      limits:
+        memory: "256Mi"
+        cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ollama  
+  labels:
+    app: ollama
+spec:
+  ports:
+    - port: 11434  
+      name: ollama
+      targetPort: 11434
+  selector:
+    app: ollama
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ollama
+spec:
+  containers:
+  - name: ollama
+    image: ollama/ollama:latest
+    command: ['ollama', 'pull', 'gemma3:270m']
+    ports:
+    - containerPort: 11434
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+      limits:
+        memory: "512Mi"
+        cpu: "1000m"

@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: generate
+spec:
+  containers:
+  - name: generate
+    image: mharner33/generate:latest
+    env:
+      - name: DD_ENV
+        value: "prod"
+      - name: DD_SERVICE
+        value: "generat"
+      - name: DD_VERSION
+        value: "1.0.0"
+      - name: PORT
+        value: "8080"
+      - name: URL
+        value: "tele0"
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "100m"
+      limits:
+        memory: "256Mi"
+        cpu: "500m"

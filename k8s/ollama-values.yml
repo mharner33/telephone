@@ -1,0 +1,5 @@
+# values.yaml
+ollama:
+  models:
+    pull:
+      - gemma3:270m
