@@ -27,5 +27,3 @@ ENV PATH="/app/.venv/bin:$PATH"
 
 # Copy the rest of the application code
 COPY . .
-
-CMD ["python", "main.py"]
